@@ -15,10 +15,10 @@ TABLE = "gcp_billing_export_resource_v1_01D002_3ABED8_D58F96"
 credentials = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_KEY)
 client = bigquery.Client(credentials=credentials, project=PROJECT_ID)
 
-# 🎯 Title and Intro
+# 🎯 Page Config
 st.set_page_config(page_title="GCP Cost Dashboard", layout="wide")
 st.title("💸 GCP Cost Explorer")
-st.markdown("Easily track your **Google Cloud costs** with custom filters, visuals, and exports.")
+st.markdown("Easily track your **Google Cloud costs** with custom filters, visuals, and business-friendly insights.")
 
 # 📅 Date Range Picker
 with st.container():
@@ -50,25 +50,61 @@ def load_cost_data(start_date, end_date):
 
 df = load_cost_data(start_date, end_date)
 
-# 🧰 Filters
+# 🧰 Filter Options
 with st.expander("🔧 Filter Options", expanded=True):
     all_services = df["service"].unique()
     selected_services = st.multiselect("Choose Services", all_services, default=list(all_services))
     df = df[df["service"].isin(selected_services)]
 
-# 📌 KPIs
-with st.container():
-    st.markdown("### 📊 Key Metrics")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("💰 Total Spend", f"${df['total_cost'].sum():,.2f}")
-    if not df.empty:
-        top_service = df.groupby("service")["total_cost"].sum().idxmax()
-        peak_day = df.groupby("date")["total_cost"].sum().idxmax()
-        col2.metric("🚀 Top Service", top_service)
-        col3.metric("📈 Peak Spend Day", peak_day.strftime("%Y-%m-%d"))
+# 📋 Executive Summary
+st.markdown("## 📋 Executive Summary")
+df["date"] = pd.to_datetime(df["date"])
+df["month"] = df["date"].dt.to_period("M")
+monthly_cost = df.groupby("month")["total_cost"].sum().sort_index()
 
-# 📊 Visuals
-st.markdown("### 📉 Cost Breakdown")
+if len(monthly_cost) >= 2:
+    latest_month = monthly_cost.index[-1]
+    prev_month = monthly_cost.index[-2]
+    latest_cost = monthly_cost.iloc[-1]
+    prev_cost = monthly_cost.iloc[-2]
+    mom_change = ((latest_cost - prev_cost) / prev_cost) * 100 if prev_cost > 0 else 0
+    mom_direction = "🔺" if mom_change > 0 else "🔻"
+    mom_summary = f"{mom_direction} {abs(mom_change):.2f}% vs {prev_month}"
+else:
+    latest_cost = monthly_cost.iloc[-1] if not monthly_cost.empty else 0
+    mom_summary = "Not enough data"
+
+top_service = df.groupby("service")["total_cost"].sum().idxmax() if not df.empty else "N/A"
+top_service_cost = df.groupby("service")["total_cost"].sum().max() if not df.empty else 0
+
+col1, col2, col3 = st.columns(3)
+col1.metric("💰 This Month's Spend", f"${latest_cost:,.2f}")
+col2.metric("📊 MoM Change", mom_summary)
+col3.metric("🚀 Top Contributor", f"{top_service} (${top_service_cost:,.2f})")
+
+# 📉 Monthly Cost Trend
+st.markdown("### 📉 Monthly Cost Trend")
+monthly_df = monthly_cost.reset_index()
+monthly_df["month"] = monthly_df["month"].astype(str)
+bar = alt.Chart(monthly_df).mark_bar().encode(
+    x=alt.X("month", title="Month"),
+    y=alt.Y("total_cost", title="Total Cost"),
+    tooltip=["month", "total_cost"]
+).properties(width=800, height=400)
+st.altair_chart(bar, use_container_width=True)
+
+# 📌 Key Metrics
+st.markdown("### 📊 Key Metrics")
+col1, col2, col3 = st.columns(3)
+col1.metric("💰 Total Spend (Selected)", f"${df['total_cost'].sum():,.2f}")
+if not df.empty:
+    top_service = df.groupby("service")["total_cost"].sum().idxmax()
+    peak_day = df.groupby("date")["total_cost"].sum().idxmax()
+    col2.metric("🚀 Top Service", top_service)
+    col3.metric("📈 Peak Spend Day", peak_day.strftime("%Y-%m-%d"))
+
+# 📊 Visual Tabs
+st.markdown("### 🔍 Cost Breakdown")
 
 tab1, tab2, tab3 = st.tabs(["By Service", "Daily Trend", "Service Drilldown"])
 
@@ -89,9 +125,6 @@ with tab3:
         service_trend = df[df["service"] == service_to_inspect].groupby("date")["total_cost"].sum()
         st.line_chart(service_trend)
 
-# 🧾 Detailed Data
+# 🧾 Raw Data View
 with st.expander("🧾 Full Billing Data"):
     st.dataframe(df, use_container_width=True)
-
-# 📤 Export Button
-st.download_button("📥 Download as CSV", df.to_csv(index=False), file_name="gcp_costs.csv", use_container_width=True)
