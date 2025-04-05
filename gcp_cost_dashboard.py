@@ -159,6 +159,7 @@ with tab2:
         x="date:T", y="total_cost:Q", tooltip=["date", "total_cost"]
     ).properties(width=800, height=400)
     st.altair_chart(line, use_container_width=True)
+    
 
 with tab3:
     if not df.empty:
