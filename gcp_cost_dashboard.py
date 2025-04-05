@@ -103,6 +103,47 @@ if not df.empty:
     col2.metric("🚀 Top Service", top_service)
     col3.metric("📈 Peak Spend Day", peak_day.strftime("%Y-%m-%d"))
 
+# 💼 Budget vs Actual Comparison
+st.markdown("### 💼 Budget vs Actual Comparison")
+
+services_in_data = df["service"].unique()
+st.markdown("#### Set Monthly Budgets ($)")
+budget_inputs = {}
+cols = st.columns(len(services_in_data) if len(services_in_data) <= 4 else 4)
+
+for idx, service in enumerate(services_in_data):
+    col = cols[idx % len(cols)]
+    budget_inputs[service] = col.number_input(
+        f"{service}",
+        min_value=0.0,
+        value=0.0,
+        step=100.0,
+        format="%.2f"
+    )
+
+budget_df = pd.DataFrame([
+    {
+        "Service": service,
+        "Budget ($)": budget_inputs[service],
+        "Actual ($)": df[df["service"] == service]["total_cost"].sum()
+    }
+    for service in services_in_data
+])
+
+budget_df["Variance ($)"] = budget_df["Actual ($)"] - budget_df["Budget ($)"]
+budget_df["% Difference"] = budget_df.apply(
+    lambda row: (row["Variance ($)"] / row["Budget ($)"] * 100) if row["Budget ($)"] > 0 else 0,
+    axis=1
+)
+budget_df["Status"] = budget_df["Variance ($)"].apply(
+    lambda x: "✅ Under" if x <= 0 else "❌ Over"
+)
+
+st.dataframe(budget_df.style
+    .applymap(lambda x: "color: red;" if isinstance(x, float) and x > 0 else "color: green;", subset=["Variance ($)", "% Difference"])
+    .format({"Budget ($)": "${:,.2f}", "Actual ($)": "${:,.2f}", "Variance ($)": "${:,.2f}", "% Difference": "{:.1f}%"})
+)
+
 # 📊 Visual Tabs
 st.markdown("### 🔍 Cost Breakdown")
 
@@ -118,6 +159,7 @@ with tab2:
         x="date:T", y="total_cost:Q", tooltip=["date", "total_cost"]
     ).properties(width=800, height=400)
     st.altair_chart(line, use_container_width=True)
+    
 
 with tab3:
     if not df.empty:
