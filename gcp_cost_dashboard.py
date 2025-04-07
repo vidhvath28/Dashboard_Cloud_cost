@@ -139,6 +139,7 @@ budget_df["Status"] = budget_df["Variance ($)"].apply(
     lambda x: "✅ Under" if x <= 0 else "❌ Over"
 )
 
+
 st.dataframe(budget_df.style
     .applymap(lambda x: "color: red;" if isinstance(x, float) and x > 0 else "color: green;", subset=["Variance ($)", "% Difference"])
     .format({"Budget ($)": "${:,.2f}", "Actual ($)": "${:,.2f}", "Variance ($)": "${:,.2f}", "% Difference": "{:.1f}%"})
