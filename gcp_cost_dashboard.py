@@ -131,6 +131,7 @@ budget_df = pd.DataFrame([
 ])
 
 
+
 budget_df["Variance ($)"] = budget_df["Actual ($)"] - budget_df["Budget ($)"]
 budget_df["% Difference"] = budget_df.apply(
     lambda row: (row["Variance ($)"] / row["Budget ($)"] * 100) if row["Budget ($)"] > 0 else 0,
